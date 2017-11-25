@@ -1,0 +1,108 @@
+# Below is a list of inject_snap commands and short bit of code I've
+#   found useful for setting up an observation
+
+
+
+
+####### Defined Variables ########
+
+$expname - the name of the experiment.
+$sourcename - the name of your source.
+$antenna - the antenna being used, Ww -> 12M, Wa -> 30M.
+$freq - the center frequency of the Upper and Lower sidebands.
+$ifxgain - the optimal gain for IFX.
+$bandwidth - the bandwidth of the recorded bandpass, multiple of 2.
+$ra - the right ascension in the correct format
+$dec - the declination in the correct format
+
+
+
+
+####### Antenna Setup ########
+
+
+inject_snap -w ifx=1,$ifxgain,$filter
+#Sets up each IF (4 possible, IFA, IFB, IFC, IFD)
+#$ifxgain sets the level of gain for IFX, if $ifxgain=agc the gain is
+#   automatically set so to satisfy the optimal level for the analog to digital
+#   converter.
+#$filter is the filter used on IFX. The possible values are:
+#   2 (10-512 MHz), 1 (512-1024 MHz), 4 (1024-1536).
+
+
+inject_snap -w ifx
+#Queries the current ifx setup.
+
+
+inject_snap log=$expname
+#Changes the current log to $expname.log. This log records the output of the
+#   field system and not your script.
+
+
+inject_snap -w mk5b_mode=ext,0x00000f0f,$decimation
+#Sets the Mark5 recording mode.
+#ext selects to the external 32 MHz clock.
+#The bit mask here records channels 1, 2, 5, and 6 at 2-bits.
+#   The bit mask is hexadecimal so 00000f0f = 0000 0000 0000 0000 0000 1111 0000 1111.
+#   The number of channels record must ALWAYS be a multiple of 2.
+#$decimation = 32 / 2 x $bandwidth. For more info on this please
+#   look at mk5decimationratio.doc.
+
+
+inject_snap -w form=astro
+#This command sets up the channel mapping for the DBBC. For the exact channel mapping
+#   please look at DBBC2 DDC form  table v105_291214.pdf.
+
+
+inject_snap -w bbcX=$freq,a,$bandwidth
+#Sets the center frequency, IF input and bandwidth for each bbc (16 possible, bbc01 - bbc16)
+#$freq is the center frequency between the Upper and Lower sidebands
+#a selects input a in the IF, consult with Tim, Stuart, or Ben about curent input setup
+#$bandwidth is the recorded bandwidth, MUST be a multiple of 2.
+
+
+inject_snap -w bbcX
+#Queries the current bbcX setup.
+
+
+
+
+####### Antenna Control ########
+
+
+inject_snap -w source=$sourcename,$ra,$dec,2000.0
+#Slews the antenna to a source.
+#$sourcename is just the name of the source, e.g. Orion, Vela.
+#$ra is the right ascension where 08h 35m 20.65525s -> 083521.
+#$dec is the declination where −45° 10′ 35.1545″ -> -451035.
+#2000.0 selects the J2000 reference frame (default).
+
+
+inject_snap -w source=stow
+#Stows the antenna. Should always be don once observation is over.
+
+
+
+
+####### Recording Control ########
+
+
+inject_snap -w mk5=record=on:$name\:$expname\:$antenna
+#Tells the Mark5B to start recording on the next second tick.
+#$name is the name of the scan, i.e. scan1.
+#$expname is the name of the experiment.
+#$antenna is the current antenna, Ww -> 12M, Wa -> 30M.
+
+
+inject_snap -w mk5=record=off
+#stops the current recording on the next second tick.
+
+
+inject_snap -w mk5=record?
+#queries the current recording state.
+
+
+inject_snap -w bank_check
+#updates the diskpack status monitor.
+
+

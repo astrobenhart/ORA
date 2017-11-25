@@ -1,0 +1,326 @@
+#! /bin/csh -f
+
+#written by Benjamin Hart
+
+#This csh should be used to observe pulsars with a var file.
+
+source $1
+
+sleep 1
+
+echo $expname 
+echo $sourcename
+echo $antenna
+echo $freq1
+echo $ra
+echo $dec
+echo $inttime
+echo $numscans
+
+
+foreach var ( "$expname" "$sourcename" "$antenna" "$freq1" "$ra" "$dec" "$inttime" "$numscans" )
+
+	if ( "$var" == "" ) then
+		echo "This varible is empty"
+		echo "please correct and try again"
+		exit 1
+	endif
+
+end
+
+#Setting up elevation monitoring
+`/usr2/oper/Observing_scripts/el_mon` &
+
+sleep 2
+
+inject_snap ifa=1,agc,1
+inject_snap ifb=2,agc,1
+#inject_snap ifc=1,agc,1
+#inject_snap ifd=1,agc,1
+
+set ifa=`inject_snap -w ifa`
+set ifb=`inject_snap -w ifb`
+#set ifc=`inject_snap -w ifc`
+#set ifd=`inject_snap -w ifd`
+
+set ifaout=($ifa:as/,/ /)
+set ifbout=($ifb:as/,/ /)
+#set ifcout=($ifc:as/,/ /)
+#set ifdout=($ifd:as/,/ /)
+
+set ifagain = $ifaout[5]
+set ifbgain = $ifbout[5]
+#set ifcgain = $ifcout[5]
+#set ifdgain = $ifdout[5]
+
+set bandwidth="16"
+
+onintr exit
+
+set mode = "ffffffff"
+
+set bandwidth="16"
+
+# LO for C-band -> 5843, Radio Astron -> 4000, X-band -> 7600
+
+if ( $freq1 < 5001 ) then
+	echo "setting LO to 4000 MHZ"
+	set LO="4000"
+else if ( $freq1 < 6844 ) then
+	echo "setting LO to 5843 MHZ"
+        set LO="5843"
+else if ( $freq1 < 8601 ) then
+        echo "setting LO to 7600 MHZ"
+        set LO="7600"
+endif
+
+set freqcheck="0"
+
+@ freqcheck = $freq1 - $LO
+
+echo $freqcheck
+
+set freqlow="0"
+set freqhigh="0"
+@ freqlow = $LO + 512
+@ freqhigh = $LO + 1024
+
+if ( $freqcheck < 512 ) then
+        echo "Freq1 out of range (too low), please set freq1 to more than $fre$
+        exit
+else if ( $freqcheck < 1024 ) then
+        echo "Freq1 filter set to 1"
+        set filter1 = "1"
+else
+        echo "Freq1 out of range (too high), please set freq1 to less than $fr$
+        exit
+endif
+
+inject_snap -w ifa=1,$ifagain,$filter1
+inject_snap -w ifb=2,$ifbgain,$filter1
+#inject_snap -w ifc=1,$ifcgain,$filter1
+#inject_snap -w ifd=1,$ifdgain,$filter1
+
+echo "Do you have enough space? Have you set new gain limits? Use the current settings?"
+echo "Enough off source slew time? Using antenna $antenna"
+inject_snap -w bank_check
+echo "Match below -> $ifagain"
+inject_snap -w ifa
+echo "Match below -> $ifbgain"
+inject_snap -w ifb
+echo "experiment name -> $expname"
+echo "source name -> $sourcename"
+echo "C-band:"
+echo "freq1 -> $freq1"
+echo "RA -> $ra"
+echo "DEC -> $dec"
+echo "integration time: $inttime seconds"
+echo "Number of scans: $numscans"
+echo ""
+echo "press y to continue, n to abort"
+set firstcheckinput = $<
+
+if ( $firstcheckinput == n ) then
+	echo "please fix/update and start again"
+	exit
+else if ( $firstcheckinput == y ) then
+	echo "sweet as, lets get started then"
+else
+	echo "please use y or n"
+	echo "ABORT ABORT ABORT"
+exit
+endif
+
+set timestamp=`date '+%j:%H:%M:%S'`
+
+@ numscans = $numscans + 1
+
+@ freq1 = $freq1 - $LO
+
+#Setting up center frequencies for all 8 upper and lower sideband  channels in astro mode
+
+set bbc01 = 0
+@ bbc01 = $freq1 - 48
+set bbc02 = 0
+@ bbc02 = $freq1 - 16
+set bbc03 = 0
+@ bbc03 = $freq1 + 16
+set bbc04 = 0
+@ bbc04 = $freq1 + 48
+set bbc05 = 0
+@ bbc05 = $freq1 - 48
+set bbc06 = 0
+@ bbc06 = $freq1 - 16
+set bbc07 = 0
+@ bbc07 = $freq1 + 16
+set bbc08 = 0
+@ bbc08 = $freq1 + 48
+
+#set bbc09 = 0
+#@ bbc09 = $freq1 - 64
+#set bbc10 = 0
+#@ bbc10 = $freq1 - 48
+#set bbc11 = 0
+#@ bbc11 = $freq1 - 32
+#set bbc12 = 0
+#@ bbc12 = $freq1 - 16
+#set bbc13 = 0
+#@ bbc13 = $freq1
+#set bbc14 = 0
+#@ bbc14 = $freq1 + 16
+#set bbc15 = 0
+#@ bbc15 = $freq1 + 32
+#set bbc16 = 0
+#@ bbc16 = $freq1 + 48
+
+set decimation = 0
+@ decimation = 32 / (2 * $bandwidth)
+
+echo "starting experiment $expname observing $sourcename"
+set logob=`inject_snap log=$expname`
+
+echo "setting gain levels"
+inject_snap -w ifa=1,$ifagain,$filter1
+inject_snap -w ifb=2,$ifbgain,$filter1
+#inject_snap -w ifc=1,$ifcgain,$filter1
+#inject_snap -w ifd=1,$ifdgain,$filter1
+
+echo "setting MK5 recording mode"
+inject_snap -w mk5b_mode=ext,0x$mode,$decimation
+inject_snap -w form=astro
+echo "commanding to source $sourcename"
+inject_snap -w source=$sourcename,$ra,$dec,2000.0
+echo "type onsource when on source"
+echo "WARNING do not press before else recording will begin off source!"
+set onsourceinput = $<
+if ( $onsourceinput == onsource ) then
+	echo "On source"
+else then
+	echo "ERROR ERROR ERROR"
+	echo "Did not type onsource"
+	echo "Incorrect input, type onsource if on source or stow to stow"
+	secondonsourceinput = $<
+	if ( $secondonsourceinput == onsource ) then
+		echo "On source"
+	else if ( $secondonsourceinput == stow ) then
+		echo "stowing"
+		inject_snap -w source=stow
+	else
+		echo "ERROR ERROR ERROR"
+		echo "Again, incorrect input, stowing"
+		inject_snap -w source=stow
+		echo "Restart experiment when ready" 
+	endif
+endif
+
+echo "starting recording now, scans should be saved in current diskpack, hope you checked the space"
+
+        inject_snap -w bbc01=$bbc01,a,$bandwidth
+        inject_snap -w bbc02=$bbc02,a,$bandwidth
+        inject_snap -w bbc03=$bbc03,a,$bandwidth
+        inject_snap -w bbc04=$bbc04,a,$bandwidth
+        inject_snap -w bbc05=$bbc05,b,$bandwidth
+        inject_snap -w bbc06=$bbc06,b,$bandwidth
+        inject_snap -w bbc07=$bbc07,b,$bandwidth
+        inject_snap -w bbc08=$bbc08,b,$bandwidth
+        #inject_snap -w bbc09=$bbc09,c,$bandwidth
+        #inject_snap -w bbc10=$bbc10,c,$bandwidth
+        #inject_snap -w bbc11=$bbc11,c,$bandwidth
+        #inject_snap -w bbc12=$bbc12,c,$bandwidth
+        #inject_snap -w bbc13=$bbc13,d,$bandwidth
+        #inject_snap -w bbc14=$bbc14,d,$bandwidth
+        #inject_snap -w bbc15=$bbc15,d,$bandwidth
+        #inject_snap -w bbc16=$bbc16,d,$bandwidth
+
+        inject_snap -w bbc01
+        inject_snap -w bbc02
+        inject_snap -w bbc03
+        inject_snap -w bbc04
+        inject_snap -w bbc05
+        inject_snap -w bbc06
+        inject_snap -w bbc07
+        inject_snap -w bbc08
+        #inject_snap -w bbc09
+        #inject_snap -w bbc10
+        #inject_snap -w bbc11
+        #inject_snap -w bbc12
+        #inject_snap -w bbc13
+        #inject_snap -w bbc14
+        #inject_snap -w bbc15
+        #inject_snap -w bbc16
+
+	sleep 1
+
+set count=1
+
+while($count<$numscans)
+
+	set lastlineantmon=`tail -n 1 /usr2/oper/Observing_scripts/tmp/antstatus`
+
+	set lastline=($lastlineantmon:as/,/ /)
+
+	set elev=$lastline[6]
+	
+	#if elevation is less than 10 degrees, stow
+	if ( $elev < 100000 ) then
+		echo "source is too low antenna is going to stow"
+		inject_snap -w source=stow
+		exit 1
+	endif
+
+	set name="scan$count"
+
+	echo "start recording $name"
+
+	set timestamp=`date '+%j:%H:%M:%S'`
+	
+	inject_snap -w bank_check
+
+	echo $timestamp
+	
+	inject_snap -w mk5=record=on:$name\:$expname\:$antenna
+
+	sleep $inttime
+	
+	inject_snap -w mk5=record=off
+	
+	inject_snap -w mk5=record?
+
+	set timestamp=`date '+%j:%H:%M:%S'`
+
+	echo $timestamp
+
+	echo "end of $name"
+	
+	echo "Starting next scan"
+
+	inject_snap -w source=$sourcename,$ra,$dec,2000.0
+
+	sleep 1
+	
+	@ count = $count + 1
+
+end
+
+
+exit:
+
+echo "exiting observation"
+echo "stopping MK5 recording"
+inject_snap -w mk5=record=off
+killall antmon
+
+echo "Do you wish to stow? <y or n>"
+set exitstowinput = $<
+
+if ( $exitstowinput == n ) then
+	echo "staying on source, make sure you stow before leaving"
+else if ( $exitstowinput == y ) then
+	echo "stowing, thank you for observing"
+	inject_snap -w source=stow
+	inject_snap -w log=station
+else
+	echo "wrong key, stowing antenna"
+	inject_snap -w source=stow
+	inject_snap -w log=station
+endif 

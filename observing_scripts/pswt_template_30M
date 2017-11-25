@@ -1,0 +1,335 @@
+#! /bin/csh -f
+
+#EDIT THE FOLLOWING BEFORE BEGINNING EXPERIMENT
+
+#MAKE SURE YOU ARE EDITING A COPY OF THE TEMPLATE
+#AND NOT THE TEMPLATE ITSELF
+
+#Name of the experiment (max 6 characters)
+set expname=""
+#Name of source i.e. Orion
+set sourcename=""
+#antenna, 30M -> Wa, 12M -> Ww
+set antenna=""
+
+#Center frequency of you're two bandpass's
+#NOTE freq1 = Center freq - LO
+#H99a = 6676 MHz
+#therefore freq1 = 6676 - 5843 = 833
+#freq1 range from 6355 - 6867 MHz
+#freq2 range from 6867 - 7379 MHz
+#NOTE that freqX should be at least half a bandpass from edge of range
+#frequency range is ~6550 - 6800 MHz
+set freq1=""
+set freq2=""
+
+#Check using ifa, ifb command in field system operator input
+#if output looks like 1,man,1,... set to agc mode using
+#ifa=1,agc,1
+#ifb=1,agc,4
+#the last number is the filter, use the following ranges to decide which filter to use
+#10-512 MHz use 2
+#512-1024 MHz use 1
+#1024-1536 MHz use 4
+set ifagain=""
+set ifbgain=""
+
+#either 8 or 16
+set bandwidth=""
+
+#ON source coords, i.e. 16h 20m 31s = 162031
+set ra=""
+set dec=""
+
+#OFF source coords
+set offra=""
+set offdec=""
+
+# How long it takes to slew off source plus ~10 secs settling time in seconds
+# check by actually slewing off source from on source
+set offslewtime=""
+
+#integration time in seconds i.e. 10min = 600
+set inttime=""
+
+#DO NOT EDIT PAST THIS POINT
+
+onintr exit
+
+if ( $freq1 < 10 ) then
+	echo "Freq1 out of range, please change to suitable value"
+	exit
+else if ( $freq1 < 512 ) then
+	echo "Freq1 filter set to 2"
+	set filter1 = "2"
+else if ( $freq1 < 1024 ) then
+	echo "Freq1 filter set to 1"
+	set filter1 = "1"
+else if ( $freq1 < 1536 ) then
+	echo "Freq1 filter set to 4"
+	set filter1 = "4"
+else
+	echo "Freq1 out of range, please change to suitable value"
+	exit
+end
+
+if ( $freq2 < 10 ) then
+	echo "Freq2 out of range, please change to suitable value"
+	exit
+else if ( $freq2 < 512 ) then
+	echo "Freq2 filter set to 2"
+	set filter2 = "2"
+else if ( $freq2 < 1024 ) then
+	echo "Freq2 filter set to 1"
+	set filter2 = "1"
+else if ( $freq2 < 1536 ) then
+	echo "Freq2 filter set to 4"
+	set filter2 = "4"
+else
+	echo "Freq2 out of range, please change to suitable value"
+	exit
+end
+
+inject_snap -w ifa=1,$ifagain,$filter1
+inject_snap -w ifb=1,$ifbgain,$filter2
+
+echo "Do you have enough space? Have you set new gain limits? Use the current settings?"
+echo "Enough off source slew time? Using antenna $antenna"
+inject_snap -w bank_check
+echo "Match below -> $ifagain"
+inject_snap -w ifa
+echo "Match below -> $ifbgain"
+inject_snap -w ifb
+echo "experiment name -> $expname"
+echo "source name -> $sourcename"
+echo "freq1 -> $freq1"
+echo "freq2 -> $freq2"
+echo "RA -> $ra"
+echo "DEC -> $dec"
+echo "Off RA -> $offra"
+echo "Off DEC -> $offdec"
+echo "On int $inttime seconds"
+echo ""
+echo "press y to continue, n to abort"
+set firstcheckinput = $<
+
+if ( $firstcheckinput == n ) then
+	echo "please fix/update and start again"
+	exit
+else if ( $firstcheckinput == y ) then
+	echo "sweet as, lets get started then"
+else
+	echo "please use y or n"
+	echo "ABORT ABORT ABORT"
+exit
+endif
+
+set timestamp=`date '+%j:%H:%M:%S'`
+
+@ freq1 = $freq1 - $bandwidth / 2
+@ freq2 = $freq2 - $bandwidth / 2
+ 
+set decimation = 0
+@ decimation = 32 / (2 * $bandwidth)
+
+echo "starting experiment $expname observing $sourcename"
+set logob=`inject_snap log=$expname`
+
+echo "setting gain levels"
+inject_snap -w ifa=1,$ifagain,$filter1
+inject_snap -w ifb=1,$ifbgain,$filter2
+
+echo "setting MK5 recording mode"
+inject_snap -w mk5b_mode=ext,0xf0f00000,$decimation
+inject_snap -w form=astro
+
+echo "commanding to source $sourcename"
+inject_snap -w source=$sourcename,$ra,$dec,2000.0
+echo "type onsource when on source"
+echo "WARNING do not press before else recording will begin off source!"
+set onsourceinput = $<
+if ( $onsourceinput == onsource ) then
+	echo "On source"
+else then
+	echo "ERROR ERROR ERROR"
+	echo "Did not type onsource"
+	echo "Incorrect input, type onsource if on source or stow to stow"
+	secondonsourceinput = $<
+	if ( $secondonsourceinput == onsource ) then
+		echo "On source"
+	else if ( $secondonsourceinput == stow ) then
+		echo "stowing"
+		inject_snap -w source=stow
+	else
+		echo "ERROR ERROR ERROR"
+		echo "Again, incorrect input, stowing"
+		inject_snap -w source=stow
+		echo "Restart experiment when ready" 
+	endif
+endif
+
+echo "starting recording now, scans should be saved in current diskpack, hope you checked the space"
+
+set count=1
+
+while($count<9999)
+
+	set    timestamp=`date '+%j:%H:%M:%S'`
+
+	if($count<10) then
+		set name="scan000$count"
+
+	else if($count<100) then
+		set name="scan00$count"
+
+	else if($count<1000) then
+		set name="scan0$count"
+
+	else
+		set name="scan$count"
+
+	endif
+
+	echo "start recording $name"
+
+	set timestamp=`date '+%j:%H:%M:%S'`
+	
+	set bankcheck=`inject_snap -w bank_check`
+
+	echo $timestamp
+	
+	set proc1=`inject_snap -w bbc01=$freq1,a,$bandwidth`
+	set proc2=`inject_snap -w bbc02=$freq1,a,$bandwidth`
+	set proc3=`inject_snap -w bbc03=$freq1,a,$bandwidth`
+	set proc4=`inject_snap -w bbc04=$freq1,a,$bandwidth`
+	set proc5=`inject_snap -w bbc05=$freq2,b,$bandwidth`
+	set proc6=`inject_snap -w bbc06=$freq2,b,$bandwidth`
+	set proc7=`inject_snap -w bbc07=$freq2,b,$bandwidth`
+	set proc8=`inject_snap -w bbc08=$freq2,b,$bandwidth`
+
+	inject_snap -w bbc01
+	inject_snap -w bbc02
+	inject_snap -w bbc03
+	inject_snap -w bbc04
+	inject_snap -w bbc05
+	inject_snap -w bbc06
+	inject_snap -w bbc07
+	inject_snap -w bbc08
+
+	sleep 1
+
+	inject_snap -w mk5=record=on:$name\:$expname\:$antenna
+
+	sleep $inttime
+	
+	inject_snap -w mk5=record=off
+	
+	inject_snap -w mk5=record?
+
+	set timestamp=`date '+%j:%H:%M:%S'`
+
+	echo $timestamp
+
+	echo "end of $name"
+	
+	
+	
+	
+	echo "slewing to OFF source position"
+	
+	inject_snap -w source=$sourcename,$offra,$offdec,2000.0
+	
+	sleep $offslewtime
+	
+	echo "Should be tracking now"
+	
+	if($count<10) then
+		set name="offscan000$count"
+
+	else if($count<100) then
+		set name="offscan00$count"
+
+	else if($count<1000) then
+		set name="offscan0$count"
+
+	else
+		set name="offscan$count"
+
+	endif
+	
+	echo "starting scan $name"
+	
+	set timestamp=`date '+%j:%H:%M:%S'`
+	
+	set bankcheck=`inject_snap -w bank_check`
+
+	echo $timestamp
+	
+	set proc1=`inject_snap -w bbc01=$freq1,a,$bandwidth`
+	set proc2=`inject_snap -w bbc02=$freq1,a,$bandwidth`
+	set proc3=`inject_snap -w bbc03=$freq1,a,$bandwidth`
+	set proc4=`inject_snap -w bbc04=$freq1,a,$bandwidth`
+	set proc5=`inject_snap -w bbc05=$freq2,b,$bandwidth`
+	set proc6=`inject_snap -w bbc06=$freq2,b,$bandwidth`
+	set proc7=`inject_snap -w bbc07=$freq2,b,$bandwidth`
+	set proc8=`inject_snap -w bbc08=$freq2,b,$bandwidth`
+	
+	inject_snap -w bbc01
+	inject_snap -w bbc02
+	inject_snap -w bbc03
+	inject_snap -w bbc04
+	inject_snap -w bbc05
+	inject_snap -w bbc06
+	inject_snap -w bbc07
+	inject_snap -w bbc08
+
+	sleep 1
+
+	inject_snap -w mk5=record=on:$name\:$expname\:$antenna
+
+	sleep $inttime
+	
+	inject_snap -w mk5=record=off
+	
+	inject_snap -w mk5=record?
+
+	set timestamp=`date '+%j:%H:%M:%S'`
+	
+	echo $timestamp
+	
+	echo "end of $name"
+	
+	
+	
+	echo "slewing to ON source position"
+	
+	inject_snap -w source=$sourcename,$ra,$dec,2000.0
+	
+	sleep $offslewtime
+	
+	echo "Should be tracking now"
+	
+	
+	@ count = $count + 1
+
+end
+
+
+exit:
+
+echo "exiting observation"
+echo "stopping MK5 recording"
+inject_snap -w mk5=record=off
+
+echo "Do you wish to stow? <y or n>"
+set exitstowinput = $<
+
+if ( $exitstowinput == n ) then
+	echo "staying on source, make sure you stow before leaving"
+else if ( $exitstowinput == y ) then
+	echo "stowing, thank you for observing"
+	inject_snap -w source=stow
+else
+	echo "wrong key, stowing antenna
+	inject_snap -w source=stow
+endif 

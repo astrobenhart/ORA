@@ -1,0 +1,38 @@
+#Please input the following variables when wanting to observe
+#   using position switching and save in same directory as pswt
+
+
+#Experiment meta data
+expname = ""
+sourcename = ""
+antenna = ""
+
+#Center frequencies in MHz
+#Only fill in those that you wish to use (must have a multiple of 2) else leave as 0
+freq1 = "0"
+freq2 = "0"
+freq3 = "0"
+freq4 = "0"
+freq5 = "0"
+freq6 = "0"
+freq7 = "0"
+freq8 = "0"
+#must be a multiple of 2 in MHz
+bandwidth = ""
+#Local oscillator frequency in MHz
+lo = ""
+
+#Source coordinates (16h 35m 27.8s -> 163528) (−45° 10′ 35.1″ -> -451035)
+# On source
+ra = ""
+dec = ""
+#Off source
+offra = ""
+offdec = ""
+
+#Slewing time to off source position in seconds
+offslewtime = ""
+
+#integration time in seconds
+inttime = ""
+

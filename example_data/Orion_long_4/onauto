@@ -1,0 +1,28 @@
+#! /bin/csh -f
+
+set startnum="1"
+
+set obsname="oril04"
+set obsfilename="Orion_long_04"
+
+while ($startnum<9999)
+
+if($startnum<10) then
+	set scan="scan000$startnum"
+
+else if($startnum<100) then
+	set scan="scan00$startnum"
+
+else if($startnum<1000) then
+	set scan="scan0$startnum"
+
+else
+	set scan="scan$startnum"
+
+endif
+
+/home/oper/autocorrelator/autocorrelator -v -f Mark5B-512-8-2 /media/data1/30MObs/$obsfilename/$obsname\_wa_$scan.m5a -dump /media/data1/30MObs/$obsfilename/$obsname\_wa_$scan.txt -d /nu -a 14 -b 2
+
+@ startnum = $startnum + 1
+
+end

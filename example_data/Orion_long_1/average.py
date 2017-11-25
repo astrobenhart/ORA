@@ -30,14 +30,14 @@ for x in range(1,int((len(files)/2)+1)):
 
 flagged = 0
 
-for data in [onsource,offsource,aver]:
-	for i in range(len(data)):
-		if data[i] > (np.median(data) + 2*np.std(data)):
-			data[i] = 0
-			flagged += 1
-		if data[i] < (np.median(data) - 2*np.std(data)):
-			data[i] = 0
-			flagged += 1
+# for data in [onsource,offsource,aver]:
+# 	for i in range(len(data)):
+# 		if data[i] > (np.median(data) + 2*np.std(data)):
+# 			data[i] = 0
+# 			flagged += 1
+# 		if data[i] < (np.median(data) - 2*np.std(data)):
+# 			data[i] = 0
+# 			flagged += 1
 
 print("Number of data points flagged in plot: "+str(flagged))
 print("median: "+str(np.median(aver)))

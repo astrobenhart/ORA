@@ -34,6 +34,12 @@ else:
 		data2 = [i * 5 for i in data]
 		return data2
 
+	def RFIsim(type, chans):
+		data=np.zeros(chans)
+		# type 1 is bad channels,
+		if type == 1:
+			if
+
 	def simONdata(bands, chans):
 		data2 = []
 		for i in range(bands):
